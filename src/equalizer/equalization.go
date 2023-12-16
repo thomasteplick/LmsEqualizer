@@ -1465,7 +1465,7 @@ func handleLmsEqualizer(w http.ResponseWriter, r *http.Request) {
 
 		// Average the weight ensemble to reduce variance
 		for i := 0; i < lmsEqualizer.order+1; i++ {
-			fmt.Fprintf(file, "%v\n", lmsEqualizer.wEnsemble[i]/float64(trials))
+			fmt.Fprintf(file, "%v\n", lmsEqualizer.wEnsemble[i]/(float64(trials*samples)))
 		}
 
 		plot.Status = fmt.Sprintf("Adaptive filter weights '%s' written to the data folder", lmsFilterEqualizer)
