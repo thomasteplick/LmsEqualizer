@@ -158,11 +158,11 @@
 							<p>
 								Choose what data in the processing chain to display:
 							</p>
-							<input type="radio" id="channelin" name="display" checked />
+							<input type="radio" id="channelin" value="channelin" name="display" checked />
 							<label for="channelin">Channel Input</label>
-							<input type="radio" id="channelout" name="display" />
+							<input type="radio" id="channelout" value="channelout" name="display" />
 							<label for="channelout">Channel Output</label>
-							<input type="radio" id="equalizerout" name="display" />
+							<input type="radio" id="equalizerout" value="equalizerout" name="display" />
 							<label for="equalizerout">Equalizer Output</label>
 							<br />
 							<p>
@@ -182,7 +182,6 @@
 							</p>
 							<label for="filterfile">Adaptive Filter File:</label>
 							<input type="file" id="filterfile" name="filterfile" value="{{.Filename}}" />
-							<hr />
 						</div>
 						<input type="submit" value="Submit" />
 						<input type="text" size="50" name="status" value="{{.Status}}" readonly />

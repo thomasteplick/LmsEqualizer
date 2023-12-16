@@ -131,21 +131,20 @@ type FilterSignal struct {
 
 // LMS algorithm  data to create the equalizer
 type LMSAlgorithm struct {
-	gain        float64   // gain of filter
-	trials      int       // number of trials for algorithm
-	order       int       // adaptive filter order
-	samples     int       // number of samples
-	samplerate  int       // sample rate in Hz
-	wEnsemble   []float64 // ensemble average coefficients
-	wTrial      []float64 // trial coefficients
-	wg          sync.WaitGroup
-	toChan      chan ComChan // synchronized channel to dispersive channel from signal source generator
-	fromChan    chan ComChan // synchronized channel to adaptive filter from dispersive channel
-	prevBlockIn []float64    // last order/2 inputs from previous block
-	poleRad     float64      // dispersive channel pole radius ->  r*cos(ang) + j r*sin(ang)
-	poleAng     float64      // dispersive channel pole angle in degrees
-	signalFreq  int          // pseudorandom (+/-)1 square-wave in Hz
-	snr         int          // signal-to-noise ratio for dispersive channel
+	gain       float64   // gain of filter
+	trials     int       // number of trials for algorithm
+	order      int       // adaptive filter order
+	samples    int       // number of samples
+	samplerate int       // sample rate in Hz
+	wEnsemble  []float64 // ensemble average coefficients
+	wTrial     []float64 // trial coefficients
+	wg         sync.WaitGroup
+	toChan     chan ComChan // synchronized channel to dispersive channel from signal source generator
+	fromChan   chan ComChan // synchronized channel to adaptive filter from dispersive channel
+	poleRad    float64      // dispersive channel pole radius ->  r*cos(ang) + j r*sin(ang)
+	poleAng    float64      // dispersive channel pole angle in degrees
+	signalFreq int          // pseudorandom (+/-)1 square-wave in Hz
+	snr        int          // signal-to-noise ratio for dispersive channel
 }
 
 var (
@@ -1162,14 +1161,15 @@ func (lms *LMSAlgorithm) generateSignal() error {
 
 		// number of adaptive filter coefficients
 		L := lms.order + 1
-		// desired input to LMS algorithm holds past inputs
+		// desired input to LMS algorithm is delayed by half the filter length
+		delay := L / 2
+		// desired holds past inputs, of which we send the delayed sample along
+		// with the current sample
 		desired := make([]float64, L)
 
-		var (
-			r       int     = lms.samples / lms.signalFreq
-			current float64 = 1
-			k       int     = L / 2
-		)
+		r := lms.samplerate / lms.signalFreq
+		current := 1.0
+		k := delay
 
 		// Send a ComChan item to dispersive channel via the toChannel
 		for i := 0; i < lms.samples; i++ {
@@ -1182,11 +1182,17 @@ func (lms *LMSAlgorithm) generateSignal() error {
 				}
 			}
 
+			// Send current and current-delay samples
 			lms.toChan <- ComChan{desired: desired[k], in: current}
-			k = (i - L/2) % L
+
+			// roll over the index k to the end of the desired slice if
+			// negative:  -1 becomes L-1
+			k = (i - delay) % L
 			if k < 0 {
-				k = -k
+				k = L + k
 			}
+
+			// store the current sample at the end of desired slice
 			desired[i%L] = current
 		}
 	}()
@@ -1337,10 +1343,10 @@ func handleLmsEqualizer(w http.ResponseWriter, r *http.Request) {
 		}
 
 		txt = r.FormValue("poleang")
-		poleAng, err := strconv.Atoi(txt)
+		poleAng, err := strconv.ParseFloat(txt, 64)
 		if err != nil {
-			plot.Status = fmt.Sprintf("Pole angle conversion to int error: %v", err.Error())
-			fmt.Printf("Pole angle conversion to int error: %v\n", err.Error())
+			plot.Status = fmt.Sprintf("Pole angle conversion to float64 error: %v", err.Error())
+			fmt.Printf("Pole angle conversion to float64 error: %v\n", err.Error())
 			// Write to HTTP using template and grid
 			if err := lmsequalizerTmpl.Execute(w, plot); err != nil {
 				log.Fatalf("Write to HTTP output using template with error: %v\n", err)
@@ -1384,18 +1390,17 @@ func handleLmsEqualizer(w http.ResponseWriter, r *http.Request) {
 
 		// Construct object to hold LMS algorithm parameters
 		lmsEqualizer := LMSAlgorithm{
-			gain:        gain,
-			trials:      trials,
-			order:       order,
-			samples:     samples,
-			samplerate:  samplerate,
-			wEnsemble:   make([]float64, order+1),
-			wTrial:      make([]float64, order+1),
-			prevBlockIn: make([]float64, order),
-			snr:         snr,
-			poleRad:     poleRad,
-			poleAng:     float64(poleAng),
-			signalFreq:  sigfreq,
+			gain:       gain,
+			trials:     trials,
+			order:      order,
+			samples:    samples,
+			samplerate: samplerate,
+			wEnsemble:  make([]float64, order+1),
+			wTrial:     make([]float64, order+1),
+			snr:        snr,
+			poleRad:    poleRad,
+			poleAng:    poleAng,
+			signalFreq: sigfreq,
 		}
 
 		// Run the Least-Mean-Square (LMS) algorithm to create the adaptive filter
@@ -1589,7 +1594,7 @@ func (fs *FilterSignal) generateSignal() error {
 	if fs.display == "channelin" {
 		f, _ := os.Create(path.Join(dataDir, signal))
 		defer f.Close()
-		r := fs.samples / fs.signalFreq
+		r := fs.sampleFreq / fs.signalFreq
 		current := 1.0
 
 		// Save a signal sample to a disk file
@@ -1667,7 +1672,7 @@ func (lms *LMSAlgorithm) runLms() error {
 				y += lms.wTrial[j] * x[k]
 				k = (k - 1) % L
 				if k < 0 {
-					k = -k
+					k = L + k
 				}
 			}
 			// calculate the error
@@ -1682,9 +1687,10 @@ func (lms *LMSAlgorithm) runLms() error {
 				lms.wEnsemble[j] += lms.wTrial[j]
 				k = (k - 1) % L
 				if k < 0 {
-					k = -k
+					k = L + k
 				}
 			}
+			// Increment the current input index for x slice
 			i = (i + 1) % L
 		}
 	}()
@@ -1701,8 +1707,6 @@ func (fs *FilterSignal) equalizerFilter() error {
 		return nil
 		// save the output of this stage to disk file
 	} else {
-		f, _ := os.Create(path.Join(dataDir, signal))
-		defer f.Close()
 
 		// Get equalizer coefficients from running of LMS algorithm
 		f, err := os.Open(path.Join(dataDir, fs.filterfile))
@@ -1710,7 +1714,6 @@ func (fs *FilterSignal) equalizerFilter() error {
 			fmt.Printf("Error opening %s: %v\n", fs.filterfile, err.Error())
 			return err
 		}
-		defer f.Close()
 		input := bufio.NewScanner(f)
 		for input.Scan() {
 			line := input.Text()
@@ -1721,14 +1724,21 @@ func (fs *FilterSignal) equalizerFilter() error {
 			}
 			fs.filterCoeff = append(fs.filterCoeff, wt)
 		}
+		f.Close()
 
+		// Save output of this stage to disk file
+		f, _ = os.Create(path.Join(dataDir, signal))
 		// increment wg
 		fs.wg.Add(1)
 		// launch a goroutine to filter the signal
 		go func() {
-			defer fs.wg.Done()
+			defer func() {
+				fs.wg.Done()
+				f.Close()
+			}()
+
 			L := len(fs.filterCoeff)
-			// holds the previous inputs
+			// x slice holds the previous inputs so we can do the convolution sum
 			x := make([]float64, L)
 			i := 0
 			// range over the channel containing the noisy dispersive signal
@@ -1740,9 +1750,11 @@ func (fs *FilterSignal) equalizerFilter() error {
 					y += fs.filterCoeff[j] * x[k]
 					k = (k - 1) % L
 					if k < 0 {
-						k = -k
+						k = L + k
 					}
 				}
+
+				// Send output to disk file
 				fmt.Fprintf(f, "%f\n", y)
 
 				// find min/max of the signal as we go
@@ -1752,6 +1764,9 @@ func (fs *FilterSignal) equalizerFilter() error {
 				if y > fs.ymax {
 					fs.ymax = y
 				}
+				// Increment the current input index for x slice
+				i = (i + 1) % L
+
 			}
 		}()
 	}
@@ -1761,20 +1776,18 @@ func (fs *FilterSignal) equalizerFilter() error {
 // chanFilter implements the noisy dispersive channel
 func (fs *FilterSignal) chanFilter() error {
 	// determine where to send the signal
-
 	// this stage not used for this display choice
 	if fs.display == "channelin" {
 		return nil
 		// save the output of this stage to disk file
 	} else if fs.display == "channelout" {
 		f, _ := os.Create(path.Join(dataDir, signal))
-		defer f.Close()
 		fs.wg.Add(1)
 		go func() {
 
 			defer func() {
 				fs.wg.Done()
-				close(fs.fromChan)
+				defer f.Close()
 			}()
 
 			// previous IIR outputs
@@ -1799,7 +1812,7 @@ func (fs *FilterSignal) chanFilter() error {
 				}
 
 				// Send output to disk file
-				fmt.Fprintf(f, "%f\n", temp)
+				fmt.Fprintf(f, "%v\n", temp)
 
 				// find min/max of the signal as we go
 				if temp < fs.ymin {
@@ -1962,7 +1975,7 @@ func handleFilterSignal(w http.ResponseWriter, r *http.Request) {
 			}
 
 			txt = r.FormValue("poleang")
-			poleAng, err := strconv.ParseFloat(txt, 64)
+			poleAng, err = strconv.ParseFloat(txt, 64)
 			if err != nil {
 				plot.Status = fmt.Sprintf("Pole angle conversion to int error: %v", err.Error())
 				fmt.Printf("Pole angle conversion to int error: %v\n", err.Error())
@@ -1998,11 +2011,11 @@ func handleFilterSignal(w http.ResponseWriter, r *http.Request) {
 
 		}
 		// Need adaptive filter file
-		if temp == "equalizerout" {
-			filterfile := r.FormValue("filterfile")
+		if display == "equalizerout" {
+			filterfile = r.FormValue("filterfile")
 			if len(filterfile) == 0 {
 				plot.Status = "Need Adaptive Filter File"
-				fmt.Printf("Need Adaptive Filter File")
+				fmt.Printf("Need Adaptive Filter File\n")
 				// Write to HTTP using template and grid
 				if err := filterSignalTmpl.Execute(w, plot); err != nil {
 					log.Fatalf("Write to HTTP output using template with error: %v\n", err)
