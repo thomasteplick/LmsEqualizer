@@ -29,6 +29,10 @@
 				width: 50px;
 			}
 
+			td.align-right {
+				text-align: right;
+			}
+
 		</style>
 	</head>
 	<body>
@@ -54,22 +58,51 @@
 				<fieldset>
 					<legend>LMS Equalizer Options</legend>
 					<div class="options">
-						<label for="samples">Samples:</label>
-						<input type="number" id="samples" name="samples" min="3000" max="16000" required/>
-						<label for="samplerate">Sample Rate:</label>
-						<input type="number" id="samplerate" name="samplerate" min="1" required />
-						<label for="gain">Gain:</label>
-						<input type="text" id="gain" name="gain" required default="1" />
-						<br />
-						<label for="trials">Trials:</label>
-						<input type="number" id="trials" name="trials" min="1" max="200" required />
-						<label for="filtorder">Adaptive Filter Order:</label>
-						<input type="number" id="filtorder" name="filtorder" min="2" max="80" required />
-						<label for="signalfreq">Signal Frequency(Hz):</label>
-						<input type="number" id="signalfreq" name="signalfreq" min="1" required />
+						<table>
+							<tr>
+								<td class="align-right">
+									<label for="samples">Samples:</label>
+								</td>
+								<td>
+									<input type="number" id="samples" name="samples" min="3000" max="16000" required/>
+								</td>
+								<td class="align-right">
+									<label for="samplerate">Sample Rate:</label>
+								</td>
+								<td>
+									<input type="number" id="samplerate" name="samplerate" min="1" required />
+								</td>
+								<td class="align-right">
+									<label for="gain">Gain:</label>
+								</td>
+								<td>
+									<input type="text" id="gain" name="gain" required default="1" />
+								</td>
+							</tr>
+							<tr>
+								<td class="align-right">
+									<label for="trials">Trials:</label>
+								</td>
+								<td>
+									<input type="number" id="trials" name="trials" min="1" max="200" required />
+								</td>
+								<td class="align-right">
+									<label for="filtorder">Adaptive Filter Order:</label>
+								</td>
+								<td>
+									<input type="number" id="filtorder" name="filtorder" min="2" max="80" required />
+								</td>
+								<td class="align-right">
+									<label for="signalfreq">Signal Frequency(Hz):</label>
+								</td>
+								<td>
+									<input type="number" id="signalfreq" name="signalfreq" min="1" required />
+								</td>
+							</tr>
+						</table>
 						<p>
-							Dispersive channel with Intersymbol Symbol Interference.  Select complex
-							pole locations at r*cos(ang) +/- j r*sin(ang), where |r|&lt;1, 0&lt;ang&lt;180:
+								Dispersive channel with Intersymbol Symbol Interference.  Select complex
+								pole locations at r*cos(ang) +/- j r*sin(ang), where |r|&lt;1, 0&lt;ang&lt;180:
 						</p>
 						<label for="polerad">Pole Radius:</label>
 						<input type="number" id="polerad" name="polerad" min=".01" max=".99" step=".01" required />
